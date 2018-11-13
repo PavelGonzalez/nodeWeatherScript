@@ -17,13 +17,52 @@ function getDataFromURL() {
         resp.on('end', () => {
             let dataInfo = JSON.parse(data);
             storeData(dataInfo.list, (data) => {
-                console.log(data);
+                insertIntoTable(data);
             });
         });
     }).on("error", (err) => {
         console.log("Error: " + err.message);
     });
 };
+
+// Insert into table
+
+function insertIntoTable(data) {
+
+
+
+    console.log(data);
+    query = `INSERT INTO [T-SDS-MAINTAIN].[dbo].[FORECAST_WIND]([TIME_STAMP],[TURBINE_SERIAL],[TURBINE_ID],[AMB_TEMP],[WIND_SPEED],[CORR_WIND_SPEED],[DEG_WIND],[PRESSURE],[HUMIDITY])
+          VALUES `;
+    for (let item of data) {
+        query += `('${item.dt_txt}',12345,2134,${item.AMB_TEMP},${item.WIND_SPEED},${item.CORR_WIND_SPEED},${item.DEG_WIND},${item.PRESSURE},${item.HUMIDITY}),`
+    }
+
+    query = query.slice(0, -1);
+
+    console.log(query);
+
+
+    (async() => {
+        const CONFIG = {
+            user: 'paveljacobo',
+            password: 'Admint5d5',
+            server: '195.201.196.135',
+            options: {
+                encrypt: true // Use this if you're on Windows Azure
+            }
+        }
+        try {
+            await sql.connect(CONFIG);
+            var request = new sql.Request();
+            const result = await request.query(`${query}`);
+            console.dir(result);
+            sql.close();
+        } catch (err) {
+            console.log('Error', err);
+        }
+    })()
+}
 
 // Receive Data and correct its values 
 function storeData(data, callback) {
@@ -61,48 +100,5 @@ function correctDataInformation(item) {
         'HUMIDITY': item.main.humidity
     };
 }
-
-
-/*
-
-    let corrected_density; // Corrected Density of wind
-    let exponential; // Exponential
-    let HubHeight = 100; // altitude of turbine
-    let BasementHeight = 100; // altitud of basement
-    let AmbientTemp = 0; // Temperature of ambient // TODO get from APIWEATHER
-    let CORR_WIND_SPEED = 0;
-    let windspeed = 1; // TODO get from APIWEATHER
-    // corrected_density =101325*EXP((-0.034*2*(HubHeight+BasementHeight))/(2*(AmbientTemp+273.15)+0.0065*(HubHeight+BasementHeight)))/(287.058*(AmbientTemp+273.15))
-
-    corrected_density = 101325 * Math.exp((-0.034 * 2 * (HubHeight + BasementHeight)) / (2 * (AmbientTemp + 273.15) + 0.0065 * (HubHeight + BasementHeight))) / (287.058 * (AmbientTemp + 273.15));
-    CORR_WIND_SPEED = windspeed * ((corrected_density / 1.225) ^ (1 / 3));
-    console.log(corrected_density);
-    console.log(CORR_WIND_SPEED);
-
-    /* (async() => {
-         const CONFIG = {
-             user: 'paveljacobo',
-             password: 'Admint5d5',
-             server: '195.201.196.135',
-             options: {
-                 encrypt: true // Use this if you're on Windows Azure
-             }
-         }
-         try {
-             await sql.connect(CONFIG);
-             const result = await sql.query `SELECT * FROM [dbo].[FORECAST_WIND]`
-             console.dir(result)
-         } catch (err) {
-             console.log('Error', err);
-         }
-     })()*/
-
-
-/* INSERT INTO [T-SDS-MAINTAIN].[dbo].[FORECAST_WIND]
-           ([TIME_STAMP],[TURBINE_SERIAL],[TURBINE_ID],[AMB_TEMP],[WIND_SPEED],[CORR_WIND_SPEED]
-           ,[DEG_WIND],[PRESSURE],[HUMIDITY])
-VALUES ('2018-11-11T03:00:00','781464','E-781464',2.3,3.4,3.5,234,12,23)
- */
-
 
 getDataFromURL();
