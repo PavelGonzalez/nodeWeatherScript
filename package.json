@@ -11,5 +11,9 @@
     "dependencies": {
         "mssql": "^4.2.1",
         "tedious": "^3.0.1"
+    },
+    "devDependencies": {
+        "babel-preset-env": "^1.7.0",
+        "babel-register": "^6.26.0"
     }
 }
