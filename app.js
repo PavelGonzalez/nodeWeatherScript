@@ -6,7 +6,7 @@ const sql = require('mssql');
 const APPID = '5c0fccea01f9a7634c42d7efaa11fc1e'
 var latitude = '';
 var longitude = '';
-const URL = `http://api.openweathermap.org/data/2.5/forecast?lat=${latitude}&lon=${longitude}&APPID=${APPID}&units=metric`
+var URL = `http://api.openweathermap.org/data/2.5/forecast?`
 const CONFIG = {
     user: 'paveljacobo',
     password: 'Admint5d5',
@@ -17,8 +17,21 @@ const CONFIG = {
 }
 
 // Get API data
-function getDataFromURL() {
-    http.get(URL, (resp) => {
+function getDataFromURL(turbines) {
+
+    for (var i = 0; i < turbines.length; i++) {
+        latitude = turbines[i].TURBINE_LATITUDE;
+        longitude = turbines[i].TURBINE_LONGITUDE;
+
+        let options = {
+            hostname: `api.openweathermap.org`,
+            path: `/data/2.5/forecast?lat=${latitude}&lon=${longitude}&APPID=${APPID}&units=metric`
+        };
+        this.turbine = turbines[i];
+        //console.log(this.turbine, 'THIS TURBINE');
+
+    }
+    http.get(options, (resp) => {
         let data = '';
         // A chunk of data has been recieved.
         resp.on('data', (dato) => {
@@ -27,7 +40,7 @@ function getDataFromURL() {
         // The whole response has been received. Print out the result.
         resp.on('end', () => {
             let dataInfo = JSON.parse(data);
-            storeData(dataInfo.list, (data) => {
+            storeData(this.turbine, dataInfo.list, (data) => {
                 insertIntoTable(data);
             });
         });
@@ -37,41 +50,52 @@ function getDataFromURL() {
 };
 
 // Receive Data and send data to function "correctDataInformation" to correct its values 
-function storeData(data, callback) {
+function storeData(turbine, data, callback) {
     let correctedData = [];
-    for (let list of data) {
-        let newitem = correctDataInformation(list);
-        correctedData.push(newitem);
-    }
-    return callback(correctedData);
+    console.log(turbine, 'Turbine');
+    //console.log(data, 'DATA');
+    // for (let listdatafromApi of data) {
+    //     let newitem = correctDataInformation(turbine, listdatafromApi).then((data) => {
+    //         console.log(data, 'FIIIIN');
+    //     }).catch(err => console.log(err));
+    //     correctedData.push(newitem);
+    // }
+    // console.log(correctedData);
+    // return callback(correctedData);
 }
 
 // Receive Data and correct its values 
-function correctDataInformation(item) {
+async function correctDataInformation(turbine, item) {
 
-    let corrected_density; // Corrected Density of wind
-    let exponential; // Exponential
-    let HubHeight = 32; // altitude of turbine
-    let BasementHeight = 100; // altitud of basement
-    let AmbientTemp = item.main.temp; // Temperature of ambient // TODO get from APIWEATHER
-    let CORR_WIND_SPEED;
-    let windspeed = item.wind.speed; // TODO get from APIWEATHER
+    var calc = await calculatePower(turbine, item.wind.speed);
+    return calc;
+
+    // let corrected_density; // Corrected Density of wind
+    // let exponential; // Exponential
+    // let hubHeight = turbine.HUB_HEIGHT; // altitude of turbine
+    // let basementHeight = turbine.BASEMENT_HEIGHT; // altitud of basement
+    // let ambientTemp = item.main.temp; // Temperature of ambient 
+    // let CORR_WIND_SPEED;
+    // let windspeed = item.wind.speed; // weedspreed from API wather
 
 
-    exponential = Math.exp((-0.034 * 2 * (HubHeight + BasementHeight)) / (2 * (AmbientTemp + 273.15) + 0.0065 * (HubHeight + BasementHeight)))
-    corrected_density = 101325 * exponential / (287.058 * (AmbientTemp + 273.15));
+    // exponential = Math.exp((-0.034 * 2 * (hubHeight + basementHeight)) / (2 * (ambientTemp + 273.15) + 0.0065 * (hubHeight + basementHeight)))
+    // corrected_density = 101325 * exponential / (287.058 * (ambientTemp + 273.15));
 
-    CORR_WIND_SPEED = windspeed * (Math.pow(corrected_density / 1.225, 1 / 3));
+    // CORR_WIND_SPEED = windspeed * (Math.pow(corrected_density / 1.225, 1 / 3));
+    // CORR_WIND_SPEED = Math.round(CORR_WIND_SPEED * 1e2) / 1e2;
 
-    return newitem = {
-        'dt_txt': item.dt_txt,
-        'AMB_TEMP': AmbientTemp,
-        'WIND_SPEED': item.wind.speed,
-        'CORR_WIND_SPEED': CORR_WIND_SPEED,
-        'DEG_WIND': item.wind.deg,
-        'PRESSURE': item.main.pressure,
-        'HUMIDITY': item.main.humidity
-    };
+
+    // return newitem = {
+    //     'dt_txt': item.dt_txt,
+    //     'AMB_TEMP': ambientTemp,
+    //     'WIND_SPEED': item.wind.speed,
+    //     'CORR_WIND_SPEED': CORR_WIND_SPEED,
+    //     'DEG_WIND': item.wind.deg,
+    //     'PRESSURE': item.main.pressure,
+    //     'HUMIDITY': item.main.humidity,
+    //     // 'POWER': power
+    // };
 }
 
 // Insert modified data into table
@@ -108,7 +132,6 @@ function insertIntoTable(data) {
 
 
 // Get Info from Out DataBase ForecastWindTable
-
 function getInfFromDB() {
     query = `SELECT TOP (10) [TURBINE_SERIAL]
                 ,[TURBINE_LATITUDE]
@@ -124,8 +147,8 @@ function getInfFromDB() {
                 await sql.connect(CONFIG);
                 var request = new sql.Request();
                 const result = await request.query(`${query}`);
-                resolve(result)
                 sql.close();
+                resolve(result)
             } catch (err) {
                 console.log('Error', err);
             }
@@ -134,9 +157,44 @@ function getInfFromDB() {
 
 }
 
-getInfFromDB().then((data) => {
-    console.log(data);
+function calculatePower(turbine, windspeed) {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve(turbine.TURBINE_SERIAL);
+        }, 2000);
+    });
 
+    // sql.close();
+    // console.log(turbine, windspeed)
+    // query = `SELECT [Power_Production]
+    //             FROM [T-SDS-MAINTAIN].[dbo].[POWERCURVE]
+    //             where DEVICE = '${turbine.TURBINE_SERIAL}' and Windspeed = ${windspeed}`;
+
+    // return new Promise((resolve, reject) => {
+    //     (async() => {
+
+    //         try {
+    //             await sql.connect(CONFIG);
+    //             var request = new sql.Request();
+    //             const result = await request.query(`${query}`);
+    //             sql.close();
+    //             resolve(result)
+    //         } catch (err) {
+    //             console.log('Error', err);
+    //         }
+    //     })()
+    // });
+
+}
+
+getInfFromDB().then((data) => {
+    // console.log(data.recordset, 'Recordset');
+    getDataFromURL(data.recordset);
+
+    return;
+}).catch((err) => {
+    console.log(err);
 })
+
 
 // getDataFromURL();
