@@ -3,21 +3,29 @@ const sql = require('mssql');
 var moment = require('moment');
 
 // Declare constanst and Global variables
-const APPID = '5c0fccea01f9a7634c42d7efaa11fc1e'
+// const APPID = '5c0fccea01f9a7634c42d7efaa11fc1e'
+const APPID = 'ca83a832b112af61692f71b21d17b423';
 var _latitude = '';
 var _longitude = '';
 var _devices;
 var _powercurve;
 var infoToSaveInDataBase = [];
+var GLOBALCOUNT = 0;
+var INSIDEAPI = 0;
 var _dataTotal = [];
 var _apiInformation = '';
+// const CONFIG_CONNECTION = {
+//     user: 'paveljacobo',
+//     password: 'Admint5d5',
+//     server: '195.201.196.135',
+//     options: {
+//         encrypt: true // Use this if you're on Windows Azure
+//     }
+// }
 const CONFIG_CONNECTION = {
+        server: 'localhost',
         user: 'paveljacobo',
-        password: 'Admint5d5',
-        server: '195.201.196.135',
-        options: {
-            encrypt: true // Use this if you're on Windows Azure
-        }
+        password: 'pavel'
     }
     //  TODO I'LL NEED DEVICE TABLE
     //  TODO I'LL NEED POWERCURVE TABLE
@@ -27,7 +35,7 @@ const CONFIG_CONNECTION = {
 
 let getTablesIformation = () => {
     console.log('Getting data information from DATABASE SQL , please wait...');
-    queryDevices = `SELECT [TURBINE_SERIAL]
+    queryDevices = `SELECT top (10) [TURBINE_SERIAL]
                         ,[TURBINE_LATITUDE]
                         ,[TURBINE_LONGITUDE]
                         ,[BASEMENT_HEIGHT]
@@ -62,14 +70,15 @@ let getTablesIformation = () => {
 }
 
 callApi = (callback) => {
+
     for (let [index, device] of _devices.entries()) {
-        setInterval(() => {
-            latitude = device.TURBINE_LATITUDE;
-            longitude = device.TURBINE_LONGITUDE;
-            let options = {
-                hostname: `api.openweathermap.org`,
-                path: `/data/2.5/forecast?lat=${latitude}&lon=${longitude}&APPID=${APPID}&units=metric`
-            };
+        latitude = device.TURBINE_LATITUDE;
+        longitude = device.TURBINE_LONGITUDE;
+        let options = {
+            hostname: `api.openweathermap.org`,
+            path: `/data/2.5/forecast?lat=${latitude}&lon=${longitude}&APPID=${APPID}&units=metric`
+        };
+        setTimeout(() => {
             http.get(options, (resp) => {
                 let data = '';
                 // A chunk of data has been recieved.
@@ -78,20 +87,25 @@ callApi = (callback) => {
                 });
                 // The whole response has been received. Print out the result.
                 resp.on('end', () => {
+                    GLOBALCOUNT++;
+                    console.log(GLOBALCOUNT);
                     _apiInformation = JSON.parse(data);
                     return callback(_apiInformation, device);
                 });
             }).on("error", (err) => {
                 console.log("Error from calling API: " + err.message);
             });
-        }, 1000);
+        }, 4000);
 
     }
 }
 
 getTablesIformation().then(() => {
     console.log('Calling the API Weather for store ForeCast information on DataBase...');
+
     callApi((dataFromApi, device) => {
+        INSIDEAPI++;
+        console.log(INSIDEAPI, 'INSIDE API');
         sendDataToCorrect(dataFromApi, device).then(totalInf => {
             _dataTotal.push(totalInf);
             if (_dataTotal.length === _devices.length) {
@@ -101,6 +115,7 @@ getTablesIformation().then(() => {
         }).catch(err => console.log(err));
 
     });
+
 });
 
 async function sendDataToCorrect(dataFromApi, device) {
